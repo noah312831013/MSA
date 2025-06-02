@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-^n&2c=oa_)l_gpaxt&0)q+j5_z157*f&6v!l)k)&d5s1j6)c8w
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-with open("graph_tutorial/oauth_settings.yml","r",encoding="utf-8") as file:
+with open("oauth_settings.yml","r",encoding="utf-8") as file:
     redirect = yaml.safe_load(file)['redirect']
 CSRF_TRUSTED_ORIGINS = [
     redirect,

@@ -265,7 +265,7 @@ def create_card_payload(subject, start_time, end_time, tenant_id, uuid, base_res
 
     return card_payload
 
-with open("graph_tutorial/oauth_settings.yml","r",encoding="utf-8") as file:
+with open("oauth_settings.yml","r",encoding="utf-8") as file:
     redirect = yaml.safe_load(file)['redirect']
 def inform_attendees(token, meeting: 'AutoScheduleMeeting'):
     headers = {
@@ -587,7 +587,7 @@ class GraphSharePointClient(GraphTeamsClient):
             owner = row.iloc[self.col_tag["Owner"]]
             teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
             # 被放入notify的條件
-            if pd.isna(task) or pd.isna(owner) or pd.isna(teams_group_name):
+            if pd.isna(task) or pd.isna(owner) or not isinstance(owner, str) or "@" not in owner or pd.isna(teams_group_name):
                 continue
             context = {
                 "sheet_name": sheet_name,
@@ -606,6 +606,65 @@ class GraphSharePointClient(GraphTeamsClient):
                 self._create_notify_item(
                     context,
                     reason="Estimate start date BE is missing",
+                    field=f"{col}{row_idx + 2}"
+                )
+
+            est_start_fe = row.iloc[self.col_tag["EST_start_FE"]]
+            if pd.isna(est_start_fe):
+                col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Estimate start date FE is missing",
+                    field=f"{col}{row_idx + 2}"
+                )
+            # 檢查 due date 為空
+            due_date_be = row.iloc[self.col_tag["due_date_BE"]]
+            if pd.isna(due_date_be):
+                col = get_column_letter(self.col_tag["due_date_BE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Due date BE is missing",
+                    field=f"{col}{row_idx + 2}"
+                )
+            due_date_fe = row.iloc[self.col_tag["due_date_FE"]]
+            if pd.isna(due_date_fe):
+                col = get_column_letter(self.col_tag["due_date_FE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Due date FE is missing",
+                    field=f"{col}{row_idx + 2}"
+                )
+
+            # 檢查 estimated start day 與今天日期差一天
+            today = pd.Timestamp.now().normalize()
+            if not pd.isna(est_start_be) and abs((est_start_be - today).days) == 1:
+                col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Estimated start date BE is within one day of today",
+                    field=f"{col}{row_idx + 2}"
+                )
+            if not pd.isna(est_start_fe) and abs((est_start_fe - today).days) == 1:
+                col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Estimated start date FE is within one day of today",
+                    field=f"{col}{row_idx + 2}"
+                )
+
+            # 檢查 due start day 與今天日期差一天
+            if not pd.isna(due_date_be) and abs((due_date_be - today).days) == 1:
+                col = get_column_letter(self.col_tag["due_date_BE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Due date BE is within one day of today",
+                    field=f"{col}{row_idx + 2}"
+                )
+            if not pd.isna(due_date_fe) and abs((due_date_fe - today).days) == 1:
+                col = get_column_letter(self.col_tag["due_date_FE"] + 1)
+                self._create_notify_item(
+                    context,
+                    reason="Due date FE is within one day of today",
                     field=f"{col}{row_idx + 2}"
                 )
 

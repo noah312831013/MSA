@@ -106,3 +106,5 @@ myenv/
 
 # OAuth settings
 oauth_settings.yml
+
+test.ipynb

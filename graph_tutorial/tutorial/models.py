@@ -199,12 +199,3 @@ class TaskNotification(models.Model):
 
     def __str__(self):
         return f"{self.sheet_name} - Row {self.row}: {self.task}"
-
-
-class SharePointClientConfig(models.Model):
-    drive_name = models.CharField(max_length=200)
-    file_path = models.CharField(max_length=500)
-    routine_interval = models.IntegerField(default=1000)  # milliseconds or seconds
-    polling_interval = models.IntegerField(default=100)
-    is_active = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)

@@ -383,8 +383,8 @@ def get_contacts(request):
 #     - The page should support dynamic refresh (e.g., via AJAX or WebSockets) to reflect updates in real-time.
 #     """
 
-from asgiref.sync import sync_to_async
-from tutorial.models import TaskNotification, SharePointClientConfig
+from asgiref.sync import sync_to_async, async_to_sync
+from tutorial.models import TaskNotification
 from tutorial.graph_helper import GraphSharePointClient
 import threading
 import time
@@ -395,13 +395,7 @@ polling_thread = None
 stop_threads = False
 
 def sharepoint_reminder_dashboard(request):
-    """
-    Renders the SharePoint Reminder Dashboard.
-    """
-    context = {
-        "config": SharePointClientConfig.objects.first()  # Load the first config if it exists
-    }
-    return render(request, "tutorial/sharepoint_reminder_dashboard.html", context)
+    return render(request, "tutorial/sharepoint_reminder_dashboard.html")
 
 def start_tasks(request):
     """
@@ -409,13 +403,8 @@ def start_tasks(request):
     """
     global scan_thread, polling_thread, stop_threads
 
-    # Get the SharePointClientConfig
-    config = SharePointClientConfig.objects.first()
-    if not config:
-        return JsonResponse({"error": "No configuration found"}, status=400)
-
     # Initialize GraphSharePointClient
-    token = request.session.get("access_token")  # Assuming token is stored in the session
+    token = get_token(request)
     SP = GraphSharePointClient(token)
 
     # Stop any existing threads
@@ -429,8 +418,8 @@ def start_tasks(request):
     # Start the scan routine thread
     def scan_routine():
         while not stop_threads:
-            sync_to_async(SP.scan_routine)()
-            time.sleep(config.routine_interval)
+            SP.scan_routine()
+            time.sleep(int(request.POST.get('routine_interval')))
 
     scan_thread = threading.Thread(target=scan_routine)
     scan_thread.start()
@@ -438,8 +427,8 @@ def start_tasks(request):
     # Start the polling thread
     def polling_task():
         while not stop_threads:
-            sync_to_async(SP.polling_task_pool)()
-            time.sleep(config.polling_interval)
+            SP.polling_task_pool()
+            time.sleep(int(request.POST.get('polling_interval')))
 
     polling_thread = threading.Thread(target=polling_task)
     polling_thread.start()
