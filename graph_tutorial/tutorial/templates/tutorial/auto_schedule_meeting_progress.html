@@ -1,0 +1,172 @@
+{% extends "tutorial/layout.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>Schedule Progress</h2>
+        </div>
+        <div class="card-body">
+            <div class="meeting-info mb-4">
+                <h3>{{ meeting.title }}</h3>
+                <p class="text-muted">{{ meeting.description }}</p>
+                <div class="row">
+                    <div class="col-md-6">
+                        {% with meeting.get_candidate_time as candidate_time %}
+                        <p><strong>Start time: </strong> 
+                                {% if candidate_time %}
+                                    {{ candidate_time.start}}
+                                {% else %}
+                                    no time
+                                {% endif %}
+                        </p>                        
+                        <p><strong>End time: </strong> 
+                                {% if candidate_time %}
+                                    {{ candidate_time.end}}
+                                {% else %}
+                                    no time
+                                {% endif %}
+                        </p>
+                        {% endwith %}              
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Duration：</strong> {{ meeting.duration }} Min</p>
+                        <p><strong>Meeting ID：</strong> {{ meeting.uuid }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <h4>Current Status</h4>
+                <div class="alert alert-info" id="status-message">
+                    {% if meeting.status == 'pending' %}
+                        initializing...
+                    {% elif meeting.status == 'waiting' %}
+                        waiting for attendees response...
+                    {% elif meeting.status == 'done' %}
+                        The meeting has been scheduled successfully.
+                    {% elif meeting.status == 'failed' %}
+                        The meeting scheduling failed. All candidate times have been exhausted, please try again.
+                    {% else %}
+                        Unknown status
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="attendees-section mt-4">
+                <h4>Attendees status</h4>
+                <div class="table-responsive">
+                    <table class="table" id="attendees-table">
+                        <thead>
+                            <tr>
+                                <th>Attendees</th>
+                                <th>Status</th>
+                                <th>Response time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for email, response in meeting.get_attendee_responses.items %}
+                            <tr>
+                                <td>{{ email }}</td>
+                                <td>
+                                    {% if response.status == 'pending' %}
+                                        <span class="badge bg-warning">Waiting</span>
+                                    {% elif response.status == 'accepted' %}
+                                        <span class="badge bg-success">Accepted</span>
+                                    {% elif response.status == 'declined' %}
+                                        <span class="badge bg-danger">Declined</span>
+                                    {% elif response.status == 'tentative' %}
+                                        <span class="badge bg-info">temtative</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ response.response_time|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if meeting.status == 'done' and meeting.selected_time %}
+            <div class="selected-time-section mt-4">
+                <h4>Time Selected</h4>
+                <div class="alert alert-success">
+                    Meeting at：{{ meeting.selected_time }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function updateStatus() {
+    fetch(`/meeting-status/{{ meeting.uuid }}/`)
+        .then(response => response.json())
+        .then(data => {
+            // 更新狀態消息
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.className = 'alert alert-' + data.status_class;
+            statusMessage.textContent = data.status_message;
+            // 更新與會者表格
+            const tbody = document.querySelector('#attendees-table tbody');
+            tbody.innerHTML = '';
+            data.attendees.forEach(attendee => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${attendee.email}</td>
+                    <td><span class="badge bg-${attendee.status_class}">${attendee.status_text}</span></td>
+                    <td>${attendee.response_time || '-'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            
+
+            // 如果會議已完成，顯示選定時間
+            if (data.status === 'done') {
+                const selectedTimeSection = document.querySelector('.selected-time-section');
+                if (!selectedTimeSection) {
+                    const newSection = document.createElement('div');
+                    newSection.className = 'selected-time-section mt-4';
+                    newSection.innerHTML = `
+                        <h4>Time selected</h4>
+                        <div class="alert alert-success">
+                            Meeting at：${data.selected_time["start"]} to ${data.selected_time["end"]}
+                        </div>
+                    `;
+                    document.querySelector('.card-body').appendChild(newSection);
+                }
+            }
+            // 如果會議失敗，顯示失敗消息
+            if (data.status === 'failed') {
+                const failedSection = document.querySelector('.failed-section');
+                if (!failedSection) {
+                    const newSection = document.createElement('div');
+                    newSection.className = 'failed-section mt-4';
+                    newSection.innerHTML = `
+                        <h4>Schedule failed</h4>
+                        <div class="alert alert-danger">
+                            All candidate times have been exhausted, please try again.
+                        </div>
+                    `;
+                    document.querySelector('.card-body').appendChild(newSection);
+                }
+            }
+            // 如果會議還在進行中，繼續更新
+            if (data.status !== 'done' && data.status !== 'failed') {
+                setTimeout(updateStatus, 5000); // 每5秒更新一次
+            }
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// 開始定期更新
+document.addEventListener('DOMContentLoaded', function() {
+    if ('{{ meeting.status }}' !== 'done' && '{{ meeting.status }}' !== 'failed') {
+        setTimeout(updateStatus, 5000);
+    } else if ('{{ meeting.status }}' === 'done' || '{{ meeting.status }}' === 'failed') {
+        updateStatus();
+    }
+});
+</script>
+{% endblock %}

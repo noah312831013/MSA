@@ -1,0 +1,161 @@
+{% extends "tutorial/layout.html" %}
+{% block content %}
+<h1>Auto Schedule Meeting</h1>
+<p>This function automatically finds available time slots for all attendees based on their Outlook Calendar availability (OCM). It then notifies them via Microsoft Teams to confirm their availability. If an attendee cannot attend, the function will propose the next available time slot, repeating the process until either all attendees accept or all time options are exhausted. Once a time slot is accepted by everyone, a Teams meeting will be scheduled automatically.</p>
+<form id="schedule-form" method="POST">
+  {% csrf_token %}
+  <div class="form-group">
+    <label for="title">Subject</label>
+    <input class="form-control" id="title" name="title" placeholder="Enter a title" type="text" required>
+  </div>
+  <div class="form-group">
+    <label for="description">Description</label>
+    <textarea class="form-control" id="description" name="description" placeholder="Enter a description" rows="3"></textarea>
+  </div>
+  <div class="form-group">
+    <label for="attendees">Attendees</label>
+    <div id="attendees-container">
+      <div class="attendee-input mb-2 position-relative">
+        <input class="form-control attendee-email" name="attendees" type="email" placeholder="Search attendees" required oninput="autocompleteAttendee(this)">
+        <div class="autocomplete-suggestions dropdown-menu"></div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary mt-2" onclick="addAttendee()">Add attendee</button>
+  </div>
+  <div class="form-group">
+    <label for="start_time">Start time</label>
+    <input class="form-control" id="start_time" name="start_time" type="datetime-local" required>
+  </div>
+  <div class="form-group">
+    <label for="end_time">Enmd time</label>
+    <input class="form-control" id="end_time" name="end_time" type="datetime-local" required>
+  </div>
+  <div class="form-group">
+    <label for="duration">Duration (Min)</label>
+    <input class="form-control" id="duration" name="duration" placeholder="How long the meeting will last" type="number" step="30" required>
+  </div>
+  <button class="btn btn-primary" type="submit">Start</button>
+</form>
+<div id="result" class="mt-3"></div>
+<script>
+  async function loadContactors(query) {
+    try {
+      const res = await fetch(`/api/contactors/?query=${encodeURIComponent(query)}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch contactors");
+      }
+      return await res.json();  // 返回取得的聯絡人資料
+    } catch (error) {
+      console.error("載入 contactors 失敗", error);
+      return [];  // 如果發生錯誤，返回空陣列
+    }
+  }
+
+  let debounceTimer; // 用於儲存計時器
+
+  async function autocompleteAttendee(input) {
+    clearTimeout(debounceTimer);
+
+    debounceTimer = setTimeout(async () => {
+      const query = input.value.toLowerCase();
+      const contactors = await loadContactors(query);
+
+      const container = input.parentElement;
+      let dropdown = container.querySelector('.autocomplete-suggestions');
+
+      if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-suggestions dropdown-menu';
+        container.appendChild(dropdown);
+      }
+
+      if (!query) {
+        dropdown.classList.remove('show');
+        dropdown.innerHTML = '';
+        return;
+      }
+
+      dropdown.innerHTML = '';
+      contactors.forEach((c, index) => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.textContent = c.name;
+        item.tabIndex = 0; // 讓選項可被鍵盤聚焦
+        item.onmouseover = () => item.classList.add('active'); // 滑鼠懸停高亮
+        item.onmouseout = () => item.classList.remove('active'); // 滑鼠移開取消高亮
+        item.onclick = () => {
+          input.value = c.email;
+          dropdown.classList.remove('show');
+        };
+        dropdown.appendChild(item);
+      });
+
+      // 限制高度並啟用滾動條
+      dropdown.style.maxHeight = '200px';
+      dropdown.style.overflowY = 'auto';
+
+      if (contactors.length > 0) {
+        dropdown.classList.add('show');
+      } else {
+        dropdown.classList.remove('show');
+      }
+
+      // 支援鍵盤導航
+      let currentIndex = -1;
+      input.onkeydown = (e) => {
+        const items = dropdown.querySelectorAll('.dropdown-item');
+        if (e.key === 'ArrowDown') {
+          currentIndex = (currentIndex + 1) % items.length;
+          items.forEach((item, index) => item.classList.toggle('active', index === currentIndex));
+        } else if (e.key === 'ArrowUp') {
+          currentIndex = (currentIndex - 1 + items.length) % items.length;
+          items.forEach((item, index) => item.classList.toggle('active', index === currentIndex));
+        } else if (e.key === 'Enter' && currentIndex >= 0) {
+          e.preventDefault();
+          items[currentIndex].click();
+        }
+      };
+    }, 300);
+  }
+
+  // 新增與會者欄位
+  function addAttendee() {
+    const container = document.getElementById("attendees-container");
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "attendee-input mb-2 position-relative";
+
+    const input = document.createElement("input");
+    input.className = "form-control";
+    input.name = "attendees";
+    input.type = "email";
+    input.placeholder = "enter email";
+    input.required = true;
+
+    input.addEventListener("input", () => autocompleteAttendee(input));
+
+    const dropdown = document.createElement("div");
+    dropdown.className = "autocomplete-suggestions dropdown-menu";
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(dropdown);
+    container.appendChild(wrapper);
+  }
+
+  // 初始化：載入 contactors 並綁定初始欄位的 autocomplete
+  document.addEventListener("DOMContentLoaded", async () => {
+    // 綁定第一個欄位的 autocomplete
+    const firstInput = document.querySelector("#attendees-container input[name='attendees']");
+    if (firstInput) {
+      firstInput.parentElement.classList.add('position-relative');
+
+      const dropdown = document.createElement("div");
+      dropdown.className = "autocomplete-suggestions dropdown-menu";
+      firstInput.parentElement.appendChild(dropdown);
+
+      firstInput.addEventListener("input", () => autocompleteAttendee(firstInput));
+    }
+  });
+</script>
+
+{% endblock %}

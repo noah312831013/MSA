@@ -1,0 +1,12 @@
+app_id: ""
+app_secret: ""
+redirect: ""
+scopes:
+  - user.read
+  - user.readbasic.all
+  - mailboxsettings.read
+  - calendars.readwrite
+  - calendars.read.shared
+  - chat.read
+  - chat.readwrite
+authority: "https://login.microsoftonline.com/common"
