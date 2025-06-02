@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 from pathlib import Path
-
+import yaml
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,8 +26,10 @@ SECRET_KEY = 'django-insecure-^n&2c=oa_)l_gpaxt&0)q+j5_z157*f&6v!l)k)&d5s1j6)c8w
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+with open("graph_tutorial/oauth_settings.yml","r",encoding="utf-8") as file:
+    redirect = yaml.safe_load(file)['redirect']
 CSRF_TRUSTED_ORIGINS = [
-    "https://c84b-60-248-185-20.ngrok-free.app",
+    redirect,
 ]
 
 # Application definition

@@ -14,7 +14,7 @@ from collections import defaultdict
 from openpyxl.utils import get_column_letter
 if TYPE_CHECKING:
     from .models import AutoScheduleMeeting
-
+import yaml
 GRAPH_URL = 'https://graph.microsoft.com/v1.0'
 
 def get_user(token):
@@ -265,7 +265,8 @@ def create_card_payload(subject, start_time, end_time, tenant_id, uuid, base_res
 
     return card_payload
 
-
+with open("graph_tutorial/oauth_settings.yml","r",encoding="utf-8") as file:
+    redirect = yaml.safe_load(file)['redirect']
 def inform_attendees(token, meeting: 'AutoScheduleMeeting'):
     headers = {
         'Authorization': f'Bearer {token}',
@@ -285,7 +286,7 @@ def inform_attendees(token, meeting: 'AutoScheduleMeeting'):
                 end_time=meeting.get_candidate_time()['end'],
                 tenant_id=tenant_id,
                 uuid = meeting.uuid,
-                base_response_url="https://c84b-60-248-185-20.ngrok-free.app/webhook/response/"
+                base_response_url=f"{redirect.replace("/callback","")}/webhook/response/"
             )
 
             url = f"{GRAPH_URL}/chats/{chat_id}/messages"
