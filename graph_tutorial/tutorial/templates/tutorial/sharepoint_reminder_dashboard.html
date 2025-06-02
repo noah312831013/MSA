@@ -1,0 +1,81 @@
+{% extends "tutorial/layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1>SharePoint Reminder Dashboard</h1>
+
+  <form id="config-form" class="mb-4">
+    <div class="form-group">
+      <label for="routine-interval">Scan Routine Interval (seconds):</label>
+      <input type="number" id="routine-interval" name="routine_interval" class="form-control" value="{{ config.routine_interval|default:60 }}" required>
+    </div>
+    <div class="form-group">
+      <label for="polling-interval">Polling Interval (seconds):</label>
+      <input type="number" id="polling-interval" name="polling_interval" class="form-control" value="{{ config.polling_interval|default:30 }}" required>
+    </div>
+    <button type="button" id="start-tasks" class="btn btn-primary">Start</button>
+    <button type="button" id="stop-tasks" class="btn btn-danger">Stop</button>
+  </form>
+
+  <h2>Tracking Items</h2>
+  <table class="table table-bordered" id="tracking-table">
+    <thead class="thead-dark">
+      <tr>
+        <th>Sheet Name</th>
+        <th>Row</th>
+        <th>Task</th>
+        <th>Owner</th>
+        <th>Reason</th>
+        <th>Replied</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Dynamic content will be loaded here -->
+    </tbody>
+  </table>
+</div>
+
+<script>
+  function refreshTrackingItems() {
+    $.get("{% url 'get_tracking_items' %}", function(data) {
+      const tableBody = $("#tracking-table tbody");
+      tableBody.empty();
+      data.forEach(item => {
+        tableBody.append(`
+          <tr>
+            <td>${item.sheet_name}</td>
+            <td>${item.row}</td>
+            <td>${item.task}</td>
+            <td>${item.owner_name}</td>
+            <td>${item.reason}</td>
+            <td>${item.replied ? "Yes" : "No"}</td>
+          </tr>
+        `);
+      });
+    });
+  }
+
+  $(document).ready(function() {
+    $("#start-tasks").click(function() {
+      $.post("{% url 'start_tasks' %}", {
+        routine_interval: $("#routine-interval").val(),
+        polling_interval: $("#polling-interval").val(),
+        csrfmiddlewaretoken: "{{ csrf_token }}"
+      }, function(response) {
+        alert(response.message);
+      });
+    });
+
+    $("#stop-tasks").click(function() {
+      $.post("{% url 'stop_tasks' %}", {
+        csrfmiddlewaretoken: "{{ csrf_token }}"
+      }, function(response) {
+        alert(response.message);
+      });
+    });
+
+    // Refresh tracking items every 5 seconds
+    setInterval(refreshTrackingItems, 5000);
+  });
+</script>
+{% endblock %}

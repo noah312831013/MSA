@@ -8,10 +8,10 @@ from django.contrib import messages
 from dateutil import tz, parser
 from tutorial.auth_helper import (get_sign_in_flow, get_token_from_code, store_user,
     remove_user_and_token, get_token)
-from tutorial.graph_helper import get_user, get_iana_from_windows, get_calendar_events, create_event, get_meeting_times_slots, get_user_info, get_chat_ids, get_users, inform_attendees, GraphSharePointClient
+from tutorial.graph_helper import get_user, get_iana_from_windows, get_calendar_events, create_event, get_meeting_times_slots, get_user_info, get_chat_ids, get_users, inform_attendees
 from .models import AutoScheduleMeeting
 import uuid
-import pandas as pd
+
 def initialize_context(request):
     context = {}
 
@@ -369,7 +369,6 @@ def get_contacts(request):
 #我想要以下設計 我是用django
 #     """
 #     handles SharePoint-based reminders using GraphSharePointClient(# 一份excel 實例一個).
-#     need manage multiple GraphSharePointClient
 #     Planned Features:
 #     1. Automatically trigger self.scan_routine(), which serves as a cron-like background scanner.
 #     2. Start a polling task using SP.polling_task_pool() to track message replies.
@@ -377,7 +376,6 @@ def get_contacts(request):
 #     UI Elements to Implement:
 #     - A time picker for users to set the scan routine schedule.
 #     - A time picker for users to configure the polling interval.
-#     - A path adder for instance GraphSharePointClient(has default value for test)
 #     - A "Start" button to begin both the routine scan and polling process.
 
 #     Once activated:
@@ -385,13 +383,82 @@ def get_contacts(request):
 #     - The page should support dynamic refresh (e.g., via AJAX or WebSockets) to reflect updates in real-time.
 #     """
 
-paths = [] # 使用者輸入 包含 drive name and path
-sp_list = []
-routine_time = 1000 # 使用者輸入
-polling_time = 100 # 使用者輸入
-for path in paths:
-    sp_list.append(GraphSharePointClient(token,drive_name=path["drive_name"], path = path['path']))
+from asgiref.sync import sync_to_async
+from tutorial.models import TaskNotification, SharePointClientConfig
+from tutorial.graph_helper import GraphSharePointClient
+import threading
+import time
 
-for sp in sp_list:
-    add_routine_cronjob(sp,routine_time)
-    add_polling_cronjob(sp,polloing_time)
+# Global variables to manage threads
+scan_thread = None
+polling_thread = None
+stop_threads = False
+
+def sharepoint_reminder_dashboard(request):
+    """
+    Renders the SharePoint Reminder Dashboard.
+    """
+    context = {
+        "config": SharePointClientConfig.objects.first()  # Load the first config if it exists
+    }
+    return render(request, "tutorial/sharepoint_reminder_dashboard.html", context)
+
+def start_tasks(request):
+    """
+    Starts the scan routine and polling tasks.
+    """
+    global scan_thread, polling_thread, stop_threads
+
+    # Get the SharePointClientConfig
+    config = SharePointClientConfig.objects.first()
+    if not config:
+        return JsonResponse({"error": "No configuration found"}, status=400)
+
+    # Initialize GraphSharePointClient
+    token = request.session.get("access_token")  # Assuming token is stored in the session
+    SP = GraphSharePointClient(token)
+
+    # Stop any existing threads
+    stop_threads = True
+    if scan_thread and scan_thread.is_alive():
+        scan_thread.join()
+    if polling_thread and polling_thread.is_alive():
+        polling_thread.join()
+    stop_threads = False
+
+    # Start the scan routine thread
+    def scan_routine():
+        while not stop_threads:
+            sync_to_async(SP.scan_routine)()
+            time.sleep(config.routine_interval)
+
+    scan_thread = threading.Thread(target=scan_routine)
+    scan_thread.start()
+
+    # Start the polling thread
+    def polling_task():
+        while not stop_threads:
+            sync_to_async(SP.polling_task_pool)()
+            time.sleep(config.polling_interval)
+
+    polling_thread = threading.Thread(target=polling_task)
+    polling_thread.start()
+
+    return JsonResponse({"message": "Tasks started successfully"})
+
+def stop_tasks(request):
+    """
+    Stops the scan routine and polling tasks.
+    """
+    global stop_threads
+    stop_threads = True
+    return JsonResponse({"message": "Tasks stopped successfully"})
+
+def get_tracking_items(request):
+    """
+    Returns the list of tracking items for real-time updates.
+    """
+    items = TaskNotification.objects.all().values(
+        "sheet_name", "row", "task", "owner_name", "reason", "replied"
+    )
+    return JsonResponse(list(items), safe=False)
