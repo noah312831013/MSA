@@ -1,5 +1,5 @@
 Django==4.2.21
-msal==1.31.1
+msal==1.32.3
 python-dateutil==2.9.0.post0
 PyYAML==6.0.2
 django-debug-toolbar==4.2.0
