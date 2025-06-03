@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from .models import AutoScheduleMeeting
 import yaml
 import base64
+from concurrent.futures import ThreadPoolExecutor
+
 GRAPH_URL = 'https://graph.microsoft.com/v1.0'
 
 def get_user(token):
@@ -597,116 +599,114 @@ class GraphSharePointClient(GraphTeamsClient):
 
             obj.save()
 
+    def _process_row(self, row, row_idx, sheet_name, teams_group_name):
+        try:
+            task = row.iloc[self.col_tag["Task"]]
+            owner = row.iloc[self.col_tag["Owner"]]
+        except Exception:
+            return
+
+        if pd.isna(task) or pd.isna(owner) or not isinstance(owner, str) or "@" not in owner or pd.isna(teams_group_name):
+            return
+
+        context = {
+            "sheet_name": sheet_name,
+            "row_idx": row_idx,
+            "task": task,
+            "owner": owner,
+            "teams_group_name": teams_group_name,
+        }
+
+        if str(row.iloc[self.col_tag["Status"]]).lower() == "done":
+            return
+
+        est_start_be = row.iloc[self.col_tag["EST_start_BE"]]
+        if pd.isna(est_start_be):
+            col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Estimate start date BE is missing",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        est_start_fe = row.iloc[self.col_tag["EST_start_FE"]]
+        if pd.isna(est_start_fe):
+            col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Estimate start date FE is missing",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        due_date_be = row.iloc[self.col_tag["due_date_BE"]]
+        if pd.isna(due_date_be):
+            col = get_column_letter(self.col_tag["due_date_BE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Due date BE is missing",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        due_date_fe = row.iloc[self.col_tag["due_date_FE"]]
+        if pd.isna(due_date_fe):
+            col = get_column_letter(self.col_tag["due_date_FE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Due date FE is missing",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        today = pd.Timestamp.now().normalize()
+
+        def to_dt_safe(val):
+            return pd.to_datetime(val, errors='coerce')
+
+        est_start_be_dt = to_dt_safe(est_start_be)
+        if not pd.isna(est_start_be_dt) and abs((est_start_be_dt - today).days) == 1:
+            col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Estimated start date BE is within one day of today",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        est_start_fe_dt = to_dt_safe(est_start_fe)
+        if not pd.isna(est_start_fe_dt) and abs((est_start_fe_dt - today).days) == 1:
+            col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Estimated start date FE is within one day of today",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        due_date_be_dt = to_dt_safe(due_date_be)
+        if not pd.isna(due_date_be_dt) and abs((due_date_be_dt - today).days) == 1:
+            col = get_column_letter(self.col_tag["due_date_BE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Due date BE is within one day of today",
+                field=f"{col}{row_idx + 2}"
+            )
+
+        due_date_fe_dt = to_dt_safe(due_date_fe)
+        if not pd.isna(due_date_fe_dt) and abs((due_date_fe_dt - today).days) == 1:
+            col = get_column_letter(self.col_tag["due_date_FE"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Due date FE is within one day of today",
+                field=f"{col}{row_idx + 2}"
+            )
 
     def _process_sheet(self, df, sheet_name):
         try:
-            teams_group_name = df.iloc[0,self.col_tag["teams_group_name"]]
+            teams_group_name = df.iloc[0, self.col_tag["teams_group_name"]]
         except Exception as e:
             print(e)
             return
-        for row_idx, row in df.iterrows():
-            try:
-                task = row.iloc[self.col_tag["Task"]]
-                owner = row.iloc[self.col_tag["Owner"]]
-                # teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
-            except Exception as e:
-                # print(f"{sheet_name} is not template format")
-                continue
-            # 被放入notify的條件
-            if pd.isna(task) or pd.isna(owner) or not isinstance(owner, str) or "@" not in owner or pd.isna(teams_group_name):
-                continue
-            context = {
-                "sheet_name": sheet_name,
-                "row_idx": row_idx,
-                "task": task,
-                "owner": owner,
-                "teams_group_name": teams_group_name,
-            }
 
-            # add for more trigger conditions
-            #　一個條件一則通知
-            # 檢查 start date
-            if str(row.iloc[self.col_tag["Status"]]).lower() == "done":
-                continue
-            est_start_be = row.iloc[self.col_tag["EST_start_BE"]]
-            if pd.isna(est_start_be):
-                col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Estimate start date BE is missing",
-                    field=f"{col}{row_idx + 2}"
-                )
-
-            est_start_fe = row.iloc[self.col_tag["EST_start_FE"]]
-            if pd.isna(est_start_fe):
-                col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Estimate start date FE is missing",
-                    field=f"{col}{row_idx + 2}"
-                )
-            # 檢查 due date 為空
-            due_date_be = row.iloc[self.col_tag["due_date_BE"]]
-            if pd.isna(due_date_be):
-                col = get_column_letter(self.col_tag["due_date_BE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Due date BE is missing",
-                    field=f"{col}{row_idx + 2}"
-                )
-            due_date_fe = row.iloc[self.col_tag["due_date_FE"]]
-            if pd.isna(due_date_fe):
-                col = get_column_letter(self.col_tag["due_date_FE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Due date FE is missing",
-                    field=f"{col}{row_idx + 2}"
-                )
-
-            # Normalize today to remove time component
-            today = pd.Timestamp.now().normalize()
-
-            # Helper: 安全轉 datetime，不合法就變 NaT
-            def to_dt_safe(val):
-                return pd.to_datetime(val, errors='coerce')
-
-            # 檢查 estimated start day 與今天日期差一天
-            est_start_be_dt = to_dt_safe(est_start_be)
-            if not pd.isna(est_start_be_dt) and abs((est_start_be_dt - today).days) == 1:
-                col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Estimated start date BE is within one day of today",
-                    field=f"{col}{row_idx + 2}"
-                )
-
-            est_start_fe_dt = to_dt_safe(est_start_fe)
-            if not pd.isna(est_start_fe_dt) and abs((est_start_fe_dt - today).days) == 1:
-                col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Estimated start date FE is within one day of today",
-                    field=f"{col}{row_idx + 2}"
-                )
-
-            # 檢查 due date 與今天日期差一天
-            due_date_be_dt = to_dt_safe(due_date_be)
-            if not pd.isna(due_date_be_dt) and abs((due_date_be_dt - today).days) == 1:
-                col = get_column_letter(self.col_tag["due_date_BE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Due date BE is within one day of today",
-                    field=f"{col}{row_idx + 2}"
-                )
-
-            due_date_fe_dt = to_dt_safe(due_date_fe)
-            if not pd.isna(due_date_fe_dt) and abs((due_date_fe_dt - today).days) == 1:
-                col = get_column_letter(self.col_tag["due_date_FE"] + 1)
-                self._create_notify_item(
-                    context,
-                    reason="Due date FE is within one day of today",
-                    field=f"{col}{row_idx + 2}"
-                )
+        with ThreadPoolExecutor() as executor:
+            for row_idx, row in df.iterrows():
+                executor.submit(self._process_row, row, row_idx, sheet_name, teams_group_name)
 
     def _create_mention_message_payload(self, context, reason):
         """
