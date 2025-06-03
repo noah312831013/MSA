@@ -478,7 +478,7 @@ class GraphSharePointClient(GraphTeamsClient):
 
         # column index for the template sheet
         self.col_tag = {
-            "Task": 4, "Owner": 5, "EST_start_BE": 6, "EST_start_FE": 7,
+            "Status":3, "Task": 4, "Owner": 5, "EST_start_BE": 6, "EST_start_FE": 7,
             "EST_days_BE": 8, "EST_days_FE": 9, "spent_days_BE": 10,
             "spent_days_FE": 11, "due_date_BE": 12, "due_date_FE": 13,
             "Note": 14, "MR": 15, "teams_group_name": 16
@@ -537,7 +537,7 @@ class GraphSharePointClient(GraphTeamsClient):
         if file_type == "csv":
             return pd.read_csv(BytesIO(res.content), sheet_name)
         elif file_type in ["xls", "xlsx"]:
-            return pd.read_excel(BytesIO(res.content), sheet_name)
+            return pd.read_excel(BytesIO(res.content), sheet_name, na_values=[""], keep_default_na=False)
         else:
             raise ValueError("Unsupported file type")
 
@@ -599,11 +599,16 @@ class GraphSharePointClient(GraphTeamsClient):
 
 
     def _process_sheet(self, df, sheet_name):
+        try:
+            teams_group_name = df.iloc[0,self.col_tag["teams_group_name"]]
+        except Exception as e:
+            print(e)
+            return
         for row_idx, row in df.iterrows():
             try:
                 task = row.iloc[self.col_tag["Task"]]
                 owner = row.iloc[self.col_tag["Owner"]]
-                teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
+                # teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
             except Exception as e:
                 # print(f"{sheet_name} is not template format")
                 continue
@@ -621,6 +626,8 @@ class GraphSharePointClient(GraphTeamsClient):
             # add for more trigger conditions
             #　一個條件一則通知
             # 檢查 start date
+            if str(row.iloc[self.col_tag["Status"]]).lower() == "done":
+                continue
             est_start_be = row.iloc[self.col_tag["EST_start_BE"]]
             if pd.isna(est_start_be):
                 col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
@@ -656,16 +663,25 @@ class GraphSharePointClient(GraphTeamsClient):
                     field=f"{col}{row_idx + 2}"
                 )
 
-            # 檢查 estimated start day 與今天日期差一天
+            # Normalize today to remove time component
             today = pd.Timestamp.now().normalize()
-            if not pd.isna(est_start_be) and abs((est_start_be - today).days) == 1:
+
+            # Helper: 安全轉 datetime，不合法就變 NaT
+            def to_dt_safe(val):
+                return pd.to_datetime(val, errors='coerce')
+
+            # 檢查 estimated start day 與今天日期差一天
+            est_start_be_dt = to_dt_safe(est_start_be)
+            if not pd.isna(est_start_be_dt) and abs((est_start_be_dt - today).days) == 1:
                 col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
                 self._create_notify_item(
                     context,
                     reason="Estimated start date BE is within one day of today",
                     field=f"{col}{row_idx + 2}"
                 )
-            if not pd.isna(est_start_fe) and abs((est_start_fe - today).days) == 1:
+
+            est_start_fe_dt = to_dt_safe(est_start_fe)
+            if not pd.isna(est_start_fe_dt) and abs((est_start_fe_dt - today).days) == 1:
                 col = get_column_letter(self.col_tag["EST_start_FE"] + 1)
                 self._create_notify_item(
                     context,
@@ -673,15 +689,18 @@ class GraphSharePointClient(GraphTeamsClient):
                     field=f"{col}{row_idx + 2}"
                 )
 
-            # 檢查 due start day 與今天日期差一天
-            if not pd.isna(due_date_be) and abs((due_date_be - today).days) == 1:
+            # 檢查 due date 與今天日期差一天
+            due_date_be_dt = to_dt_safe(due_date_be)
+            if not pd.isna(due_date_be_dt) and abs((due_date_be_dt - today).days) == 1:
                 col = get_column_letter(self.col_tag["due_date_BE"] + 1)
                 self._create_notify_item(
                     context,
                     reason="Due date BE is within one day of today",
                     field=f"{col}{row_idx + 2}"
                 )
-            if not pd.isna(due_date_fe) and abs((due_date_fe - today).days) == 1:
+
+            due_date_fe_dt = to_dt_safe(due_date_fe)
+            if not pd.isna(due_date_fe_dt) and abs((due_date_fe_dt - today).days) == 1:
                 col = get_column_letter(self.col_tag["due_date_FE"] + 1)
                 self._create_notify_item(
                     context,

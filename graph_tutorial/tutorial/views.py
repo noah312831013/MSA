@@ -402,8 +402,6 @@ def sharepoint_reminder_dashboard(request):
     user = context['user']
     if not user['is_authenticated']:
         return HttpResponseRedirect(reverse('signin'))
-
-    TaskNotification.objects.all().delete()
     return render(request, "tutorial/sharepoint_reminder_dashboard.html", context)
 
 def start_tasks(request):
@@ -429,7 +427,7 @@ def start_tasks(request):
     # Start the scan routine thread
     def scan_routine():
         while not stop_threads:
-            SP.scan_routine(sheet_name=None)
+            SP.scan_routine()
             time.sleep(int(request.POST.get('routine_interval')))
 
     scan_thread = threading.Thread(target=scan_routine)

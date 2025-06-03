@@ -46,11 +46,11 @@
         tableBody.append(`
           <tr>
             <td>${item.sheet_name}</td>
-            <td>${item.row}</td>
+            <td>${item.row+2}</td>
             <td>${item.task}</td>
             <td>${item.owner_name}</td>
             <td>${item.reason}</td>
-            <td>${item.replied ? "Yes" : "No"}</td>
+            <td>${item.replied ? "✅" : "❌"}</td>
           </tr>
         `);
       });
