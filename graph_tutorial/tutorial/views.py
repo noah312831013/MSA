@@ -395,6 +395,7 @@ polling_thread = None
 stop_threads = False
 
 def sharepoint_reminder_dashboard(request):
+    TaskNotification.objects.all().delete()
     return render(request, "tutorial/sharepoint_reminder_dashboard.html")
 
 def start_tasks(request):
@@ -402,9 +403,9 @@ def start_tasks(request):
     Starts the scan routine and polling tasks.
     """
     global scan_thread, polling_thread, stop_threads
-
     # Initialize GraphSharePointClient
     token = get_token(request)
+
     SP = GraphSharePointClient(token)
 
     # Stop any existing threads
@@ -415,10 +416,12 @@ def start_tasks(request):
         polling_thread.join()
     stop_threads = False
 
+
+
     # Start the scan routine thread
     def scan_routine():
         while not stop_threads:
-            SP.scan_routine()
+            SP.scan_routine(sheet_name=None)
             time.sleep(int(request.POST.get('routine_interval')))
 
     scan_thread = threading.Thread(target=scan_routine)

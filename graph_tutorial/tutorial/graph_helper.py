@@ -538,13 +538,17 @@ class GraphSharePointClient(GraphTeamsClient):
         task.save()
     
     def _create_notify_item(self, context: dict, reason: str, field: str):
+        try:
+            chat_id = self.get_chat_id_by_name(context["teams_group_name"])
+        except Exception as e:
+            print(f"no chat id\n{context}")
+            return
         user_info = self.get_user_info(context['owner'])
         # 發送 Teams 通知
         payload = self._create_mention_message_payload(
             context,
             reason
         )
-        chat_id = self.get_chat_id_by_name(context["teams_group_name"])
         msg_id = self.send_message_to_chat(chat_id, payload)
 
         # 查詢條件
@@ -583,9 +587,13 @@ class GraphSharePointClient(GraphTeamsClient):
 
     def _process_sheet(self, df, sheet_name):
         for row_idx, row in df.iterrows():
-            task = row.iloc[self.col_tag["Task"]]
-            owner = row.iloc[self.col_tag["Owner"]]
-            teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
+            try:
+                task = row.iloc[self.col_tag["Task"]]
+                owner = row.iloc[self.col_tag["Owner"]]
+                teams_group_name = row.iloc[self.col_tag["teams_group_name"]]
+            except Exception as e:
+                # print(f"{sheet_name} is not template format")
+                continue
             # 被放入notify的條件
             if pd.isna(task) or pd.isna(owner) or not isinstance(owner, str) or "@" not in owner or pd.isna(teams_group_name):
                 continue
@@ -732,6 +740,11 @@ class GraphSharePointClient(GraphTeamsClient):
                 attachments[0].get("id") == msg_id
             ):
                 soup = BeautifulSoup(message['body']['content'], "html.parser")
+
+                for emoji_tag in soup.find_all("emoji"):
+                    if emoji_tag.has_attr("alt"):
+                        emoji_tag.replace_with(emoji_tag["alt"])
+
 
                 text = soup.get_text(separator=' ', strip=True)
                 return text

@@ -29,7 +29,7 @@ ALLOWED_HOSTS = ['*']
 with open("oauth_settings.yml","r",encoding="utf-8") as file:
     redirect = yaml.safe_load(file)['redirect']
 CSRF_TRUSTED_ORIGINS = [
-    redirect,
+    redirect.replace("/callback",""),
 ]
 
 # Application definition
