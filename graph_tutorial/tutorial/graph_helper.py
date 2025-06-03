@@ -558,31 +558,30 @@ class GraphSharePointClient(GraphTeamsClient):
         except Exception as e:
             print(f"no chat id\n{context}")
             return
-        user_info = self.get_user_info(context['owner'])
         # 發送 Teams 通知
         payload = self._create_mention_message_payload(
             context,
             reason
         )
         msg_id = self.send_message_to_chat(chat_id, payload)
-
         # 查詢條件
         lookup = {
             "sheet_name": context["sheet_name"],
             "row": context["row_idx"],
             "reason": reason
         }
+        owner_email = context.get("owner")
+        user_info = self.get_user_info(owner_email) if owner_email else {}
 
-        # 預設欄位（建新時使用）
         defaults = {
             "task": context["task"],
-            "owner_id": user_info["id"],
-            "owner_email": context["owner"],
-            "owner_name": user_info["displayName"],
+            "owner_id": user_info.get("id") if user_info else "Unknown ID",  # 預設值
+            "owner_email": owner_email or "unknown@example.com",  # 預設值
+            "owner_name": user_info.get("displayName") if user_info else "Unknown Owner",  # 預設值
             "teams_group_id": chat_id,
             "teams_group_name": context["teams_group_name"],
             "field_address": field,
-            "msg_id": [msg_id], 
+            "msg_id": [msg_id],
         }
 
         obj, created = self.model.objects.get_or_create(defaults=defaults, **lookup)
@@ -602,13 +601,15 @@ class GraphSharePointClient(GraphTeamsClient):
     def _process_row(self, row, row_idx, sheet_name, teams_group_name):
         try:
             task = row.iloc[self.col_tag["Task"]]
-            owner = row.iloc[self.col_tag["Owner"]]
+            owner = row.iloc[self.col_tag["Owner"]] if not pd.isna(row.iloc[self.col_tag["Owner"]]) else None
         except Exception:
             return
 
-        if pd.isna(task) or pd.isna(owner) or not isinstance(owner, str) or "@" not in owner or pd.isna(teams_group_name):
+        if pd.isna(task) or pd.isna(teams_group_name):
             return
-
+        if owner:
+            if owner.lower() == "owner":
+                return
         context = {
             "sheet_name": sheet_name,
             "row_idx": row_idx,
@@ -619,7 +620,22 @@ class GraphSharePointClient(GraphTeamsClient):
 
         if str(row.iloc[self.col_tag["Status"]]).lower() == "done":
             return
-
+        if owner == None:
+            col = get_column_letter(self.col_tag["Owner"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Owner is missing",
+                field=f"{col}{row_idx + 2}"
+            )
+            return
+        if not isinstance(owner, str) or "@" not in owner:
+            col = get_column_letter(self.col_tag["Owner"] + 1)
+            self._create_notify_item(
+                context,
+                reason="Owner is not valid email",
+                field=f"{col}{row_idx + 2}"
+            )
+            return
         est_start_be = row.iloc[self.col_tag["EST_start_BE"]]
         if pd.isna(est_start_be):
             col = get_column_letter(self.col_tag["EST_start_BE"] + 1)
@@ -707,6 +723,8 @@ class GraphSharePointClient(GraphTeamsClient):
         with ThreadPoolExecutor() as executor:
             for row_idx, row in df.iterrows():
                 executor.submit(self._process_row, row, row_idx, sheet_name, teams_group_name)
+        # for row_idx, row in df.iterrows():
+        #     self._process_row(row, row_idx, sheet_name, teams_group_name)
 
     def _create_mention_message_payload(self, context, reason):
         """
@@ -719,37 +737,52 @@ class GraphSharePointClient(GraphTeamsClient):
         Returns:
             dict: The payload for sending the message.
         """
-        user_info = self.get_user_info(context['owner'])
+        
+        owner_email = context.get('owner')
+        if owner_email:
+            user_info = self.get_user_info(context['owner'])
 
-        # Construct the mention object
-        mention = {
-            "id": 0,  # Must match <at id="0"> in content
-            "mentionText": user_info['displayName'],
-            "mentioned": {
-                "user": {
-                    "id": user_info['id'],
-                    "displayName": user_info['displayName']
+            # Construct the mention object
+            mention = {
+                "id": 0,  # Must match <at id="0"> in content
+                "mentionText": user_info['displayName'],
+                "mentioned": {
+                    "user": {
+                        "id": user_info['id'],
+                        "displayName": user_info['displayName']
+                    }
                 }
             }
-        }
 
-        # Construct the message payload
-        payload = {
-            "body": {
-                "contentType": "html",
-                "content": (
-                    f"<div>"
-                    f"<p>👋 <at id=\"0\">{user_info['displayName']}</at>, please reply to this message.</p>"
-                    f"<p>💬 <i>(Your reply will be automatically recorded to SharePoint)</i></p>"
-                    f"<p>📄 <b>Sheet:</b> {context.get('sheet_name', 'N/A')}</p>"
-                    f"<p>📝 <b>Task:</b> {context.get('task', 'N/A')}</p>"
-                    f"<p>⚠️ <b>Reason:</b> {reason}</p>"
-                    f"</div>"
-                )
-            },
-            "mentions": [mention]
-        }
-
+            # Construct the message payload
+            payload = {
+                "body": {
+                    "contentType": "html",
+                    "content": (
+                        f"<div>"
+                        f"<p>👋 <at id=\"0\">{user_info['displayName']}</at>, please reply to this message.</p>"
+                        f"<p>💬 <i>(Your reply will be automatically recorded to SharePoint)</i></p>"
+                        f"<p>📄 <b>Sheet:</b> {context.get('sheet_name', 'N/A')}</p>"
+                        f"<p>📝 <b>Task:</b> {context.get('task', 'N/A')}</p>"
+                        f"<p>⚠️ <b>Reason:</b> {reason}</p>"
+                        f"</div>"
+                    )
+                },
+                "mentions": [mention]
+            }
+        else:
+            payload = {
+                "body": {
+                    "contentType": "html",
+                    "content": (
+                        f"<div>"
+                        f"<p>📄 <b>Sheet:</b> {context.get('sheet_name', 'N/A')}</p>"
+                        f"<p>📝 <b>Task:</b> {context.get('task', 'N/A')}</p>"
+                        f"<p>⚠️ <b>Reason:</b> {reason}</p>"
+                        f"</div>"
+                    )
+                },
+            }
         return payload
 
 
@@ -767,7 +800,7 @@ class GraphSharePointClient(GraphTeamsClient):
                 continue
 
             if (
-                message.get("from", {}).get("user", {}).get("id") == user_id and
+                (user_id == "Unknown ID" or message.get("from", {}).get("user", {}).get("id") == user_id) and
                 attachments[0].get("contentType") == "messageReference" and
                 attachments[0].get("id") == msg_id
             ):
