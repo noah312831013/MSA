@@ -15,6 +15,7 @@ from openpyxl.utils import get_column_letter
 if TYPE_CHECKING:
     from .models import AutoScheduleMeeting
 import yaml
+import base64
 GRAPH_URL = 'https://graph.microsoft.com/v1.0'
 
 def get_user(token):
@@ -29,6 +30,18 @@ def get_user(token):
         })
     # Return the JSON result
     return user.json()
+
+def get_user_avatar(token):
+    graph_endpoint = f'{GRAPH_URL}/me/photo/$value'
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+
+    response = requests.get(graph_endpoint, headers=headers)
+    if response.status_code == 200:
+        return base64.b64encode(response.content).decode('utf-8')  # 回傳 base64 字串
+    else:
+        return None
 
 def get_users(token, query=None):
     if not query:

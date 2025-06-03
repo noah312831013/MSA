@@ -61,7 +61,8 @@ def store_user(request, user):
         'is_authenticated': True,
         'name': user['displayName'],
         'email': user['mail'] if (user['mail'] is not None) else user['userPrincipalName'],
-        'timeZone': time_zone
+        'timeZone': time_zone,
+        'avatar': user['avatar'],
     }
 
 def get_token(request):

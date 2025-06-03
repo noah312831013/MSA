@@ -1,3 +1,18 @@
+html, body {
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+main {
+  opacity: 0;
+  transform: translateY(-30px); /* 初始往上偏移30px */
+  transition: opacity 0.6s ease, transform 1s ease;
+}
+
+main.fade-in {
+  opacity: 1;
+  transform: translateY(0); /* 回到原位 */
+}
+
 body {
   padding-top: 4.5rem;
 }
@@ -15,4 +30,27 @@ body {
 .avatar-link {
   padding-top: 4px;
   padding-bottom: 4px;
+}
+
+.indicator-triangle {
+  position: relative;
+  display: inline-block; /* 或保持原本display */
+  padding-bottom: 10px; /* 預留空間給三角形 */
+}
+
+.indicator-triangle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgb(255, 255, 255); /* 改成 border-bottom */
+}
+
+label {
+  font-weight: bold;
 }

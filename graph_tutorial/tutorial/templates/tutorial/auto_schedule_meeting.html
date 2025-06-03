@@ -2,6 +2,7 @@
 {% block content %}
 <h1>Auto Schedule Meeting</h1>
 <p>This function automatically finds available time slots for all attendees based on their Outlook Calendar availability (OCM). It then notifies them via Microsoft Teams to confirm their availability. If an attendee cannot attend, the function will propose the next available time slot, repeating the process until either all attendees accept or all time options are exhausted. Once a time slot is accepted by everyone, a Teams meeting will be scheduled automatically.</p>
+<hr>
 <form id="schedule-form" method="POST">
   {% csrf_token %}
   <div class="form-group">

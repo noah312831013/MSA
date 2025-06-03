@@ -15,6 +15,7 @@
     />
     {% load static %}
     <link rel="stylesheet" href="{% static 'tutorial/app.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   </head>
 
   <body>
@@ -28,14 +29,17 @@
         <div class="collapse navbar-collapse" id="navbarCollapse">
           <ul class="navbar-nav mr-auto">
             <li class="nav-item">
-              <a href="{% url 'home' %}" class="nav-link{% if request.resolver_match.view_name == 'home' %} active{% endif %}">Home</a>
+              <a href="{% url 'home' %}" class="nav-link{% if request.resolver_match.view_name == 'home' %} indicator-triangle active{% endif %}">Home</a>
             </li>
             {% if user.is_authenticated %}
               <li class="nav-item" data-turbolinks="false">
-                <a class="nav-link{% if request.resolver_match.view_name == 'calendar' %} active{% endif %}" href="{% url 'calendar' %}">Calendar</a>
+                <a class="nav-link{% if request.resolver_match.view_name == 'calendar' %} indicator-triangle active{% endif %}" href="{% url 'calendar' %}">Calendar</a>
               </li>
               <li class="nav-item" data-turbolinks="false">
-                <a class="nav-link{% if request.resolver_match.view_name == 'auto_schedule_meeting' %} active{% endif %}" href="{% url 'auto_schedule_meeting' %}">Auto schedule meeting</a>
+                <a class="nav-link{% if request.resolver_match.view_name == 'auto_schedule_meeting' %} indicator-triangle active{% endif %}" href="{% url 'auto_schedule_meeting' %}">Auto schedule meeting</a>
+              </li>
+              <li class="nav-item" data-turbolinks="false">
+                <a class="nav-link {% if request.resolver_match.view_name == 'sharepoint_reminder_dashboard' %} indicator-triangle active{% endif %}" href="{% url 'sharepoint_reminder_dashboard' %}">SharePoint reminder</a>
               </li>
             {% endif %}
           </ul>
@@ -49,7 +53,7 @@
               <li class="nav-item dropdown">
                 <a class="nav-link avatar-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
                   {% if user.avatar %}
-                    <img src="{{ user.avatar }}" class="rounded-circle align-self-center mr-2" style="width: 32px;">
+                    <img src="data:image/png;base64,{{ user.avatar }}" class="rounded-circle align-self-center mr-2" style="width: 32px;">
                   {% else %}
                     <img src="{% static 'tutorial/no-profile-photo.png' %}" class="rounded-circle align-self-center mr-2" style="width: 32px;">
                   {% endif %}
@@ -89,5 +93,10 @@
       integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx"
       crossorigin="anonymous"></script>
     {% block scripts %}{% endblock %}
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelector('main').classList.add('fade-in');
+      });
+    </script>
   </body>
 </html>

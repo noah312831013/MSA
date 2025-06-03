@@ -8,7 +8,8 @@ from django.contrib import messages
 from dateutil import tz, parser
 from tutorial.auth_helper import (get_sign_in_flow, get_token_from_code, store_user,
     remove_user_and_token, get_token)
-from tutorial.graph_helper import get_user, get_iana_from_windows, get_calendar_events, create_event, get_meeting_times_slots, get_user_info, get_chat_ids, get_users, inform_attendees
+from tutorial.graph_helper import get_user, get_iana_from_windows, get_calendar_events, create_event, get_meeting_times_slots, get_user_info, get_chat_ids, get_users, inform_attendees\
+, get_user_avatar
 from .models import AutoScheduleMeeting
 import uuid
 
@@ -44,7 +45,9 @@ def callback(request):
     result = get_token_from_code(request)
 
     #Get the user's profile
-    user = get_user(result['access_token'])
+    token = result['access_token']
+    user = get_user(token)
+    user['avatar'] = get_user_avatar(token)
 
     # Store user
     store_user(request, user)
@@ -395,8 +398,13 @@ polling_thread = None
 stop_threads = False
 
 def sharepoint_reminder_dashboard(request):
+    context = initialize_context(request)
+    user = context['user']
+    if not user['is_authenticated']:
+        return HttpResponseRedirect(reverse('signin'))
+
     TaskNotification.objects.all().delete()
-    return render(request, "tutorial/sharepoint_reminder_dashboard.html")
+    return render(request, "tutorial/sharepoint_reminder_dashboard.html", context)
 
 def start_tasks(request):
     """
